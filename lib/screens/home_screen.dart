@@ -217,13 +217,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(height: 10),
 
-          // Weather icon from OpenWeatherMap
-          Image.network(
-            _weatherService.getIconUrl(weather.icon),
-            width: 100,
-            height: 100,
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.wb_cloudy, size: 100, color: Colors.white),
+          // Weather emoji icon based on WMO weather code
+          Text(
+            WeatherModel.emojiFromCode(weather.weatherCode),
+            style: const TextStyle(fontSize: 80),
           ),
 
           // Temperature (rounded to 1 decimal place)
