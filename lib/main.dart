@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'screens/home_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Make the status bar transparent so the gradient shows behind it
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
+  );
   runApp(const WeatherApp());
 }
 
@@ -13,10 +19,8 @@ class WeatherApp extends StatelessWidget {
     return MaterialApp(
       title: 'Weather App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
-        useMaterial3: true,
-      ),
+      // useMaterial3 + no explicit theme → Google Fonts manages all text styles
+      theme: ThemeData(useMaterial3: true),
       home: const HomeScreen(),
     );
   }

@@ -1,11 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/weather_model.dart';
-import '../services/weather_service.dart';
+import '../services/api_service.dart';
+import '../widgets/weather_card.dart';
+import '../widgets/hourly_list.dart';
+import '../widgets/weekly_list.dart';
 
-// HomeScreen is a StatefulWidget because its content changes:
-// - First it shows a loading spinner
-// - Then it shows weather data (or an error)
-// StatefulWidget = a widget that can rebuild itself when data changes.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -13,290 +14,392 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  // ── State Variables ────────────────────────────────────────────────────────
-  final WeatherService _weatherService = WeatherService();
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  final ApiService _api = ApiService();
+  final TextEditingController _searchController = TextEditingController();
 
-  // TextEditingController listens to what the user types in the search box
-  final TextEditingController _cityController = TextEditingController();
+  WeatherModel? _weather;
+  bool _isLoading = false;
+  String? _error;
 
-  WeatherModel? _weather;   // null until data is fetched
-  bool _isLoading = false;  // true while waiting for the API response
-  String? _errorMessage;    // null unless something went wrong
+  // ── Animation controllers ─────────────────────────────────────────────────
+  late final AnimationController _fadeController;
+  late final AnimationController _slideController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
 
-  // ── Fetch Weather ──────────────────────────────────────────────────────────
-  // This method is called when the user taps the Search button.
-  Future<void> _fetchWeather() async {
-    final city = _cityController.text.trim();
-    if (city.isEmpty) return; // do nothing if the field is empty
+  @override
+  void initState() {
+    super.initState();
 
-    // Tell Flutter to rebuild with _isLoading = true (shows spinner)
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+        );
+
+    // Load a default city on startup
+    _fetchWeather('London');
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // ── Fetch weather ─────────────────────────────────────────────────────────
+  Future<void> _fetchWeather(String city) async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
-      _weather = null;
+      _error = null;
     });
+    _fadeController.reset();
+    _slideController.reset();
 
     try {
-      final weather = await _weatherService.fetchWeather(city);
-      // Data came back — show it
+      final weather = await _api.fetchWeather(city);
+      if (!mounted) return;
       setState(() {
         _weather = weather;
         _isLoading = false;
       });
+      _fadeController.forward();
+      _slideController.forward();
     } catch (e) {
-      // Something went wrong — show friendly error
+      if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _error = e.toString().replaceFirst('Exception: ', '');
         _isLoading = false;
       });
     }
   }
 
-  // ── Dispose ────────────────────────────────────────────────────────────────
-  // Always dispose controllers to free memory when the widget is removed.
-  @override
-  void dispose() {
-    _cityController.dispose();
-    super.dispose();
-  }
-
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // ── Root build ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final gradientColors =
+        _weather?.gradientColors ??
+        [const Color(0xFF1a237e), const Color(0xFF42a5f5)];
+    final textColor = _weather?.textColor ?? Colors.white;
+
     return Scaffold(
-      // ── Background gradient ──
-      body: Container(
-        decoration: const BoxDecoration(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 800),
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF1a237e), Color(0xFF42a5f5)], // dark blue → light blue
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ── App Title ──
-                const Text(
-                  'Weather App',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // ── Search Bar ──
-                // A row that contains a text field and a search button side by side
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _cityController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Enter city name...',
-                          hintStyle: const TextStyle(color: Colors.white70),
-                          prefixIcon: const Icon(Icons.location_city, color: Colors.white70),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.15),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                        ),
-                        // Allow pressing Enter on keyboard to search
-                        onSubmitted: (_) => _fetchWeather(),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Search button
-                    ElevatedButton(
-                      onPressed: _fetchWeather,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF1a237e),
-                        shape: const CircleBorder(),
-                        padding: const EdgeInsets.all(14),
-                      ),
-                      child: const Icon(Icons.search),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 40),
-
-                // ── Main Content Area ──
-                // Shows: loading spinner / error message / weather card
-                Expanded(
-                  child: _buildBody(),
-                ),
-              ],
-            ),
+          child: Column(
+            children: [
+              _buildSearchBar(textColor),
+              Expanded(child: _buildBody(textColor)),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // ── Body Builder ───────────────────────────────────────────────────────────
-  // Returns different widgets depending on current state.
-  Widget _buildBody() {
-    if (_isLoading) {
-      // Show a circular spinner while waiting for API response
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
-    }
-
-    if (_errorMessage != null) {
-      // Show a friendly error card
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, color: Colors.white70, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              _errorMessage!,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_weather != null) {
-      // Show the weather data card
-      return _buildWeatherCard(_weather!);
-    }
-
-    // Default: prompt the user to search
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  // ── Search bar ────────────────────────────────────────────────────────────
+  Widget _buildSearchBar(Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Row(
         children: [
-          Icon(Icons.wb_sunny_outlined, color: Colors.white54, size: 80),
-          SizedBox(height: 16),
-          Text(
-            'Search for a city\nto see the weather',
-            style: TextStyle(color: Colors.white70, fontSize: 18),
-            textAlign: TextAlign.center,
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: TextField(
+                  controller: _searchController,
+                  style: GoogleFonts.poppins(color: textColor),
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search city...',
+                    hintStyle: GoogleFonts.poppins(
+                      color: textColor.withValues(alpha: 0.55),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: textColor.withValues(alpha: 0.7),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.15),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                  ),
+                  onSubmitted: (v) {
+                    final city = v.trim();
+                    if (city.isNotEmpty) _fetchWeather(city);
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _glassIconButton(
+            icon: Icons.refresh_rounded,
+            textColor: textColor,
+            onTap: () {
+              final city = _searchController.text.trim();
+              if (city.isNotEmpty) _fetchWeather(city);
+            },
           ),
         ],
       ),
     );
   }
 
-  // ── Weather Card ───────────────────────────────────────────────────────────
-  Widget _buildWeatherCard(WeatherModel weather) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          // City name
-          Text(
-            weather.cityName,
-            style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+  Widget _glassIconButton({
+    required IconData icon,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(50),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(50),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
+            child: Icon(icon, color: textColor, size: 22),
           ),
+        ),
+      ),
+    );
+  }
 
-          const SizedBox(height: 10),
+  // ── Body: loading / error / content ──────────────────────────────────────
+  Widget _buildBody(Color textColor) {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(color: textColor, strokeWidth: 2.5),
+      );
+    }
 
-          // Weather emoji icon based on WMO weather code
-          Text(
-            WeatherModel.emojiFromCode(weather.weatherCode),
-            style: const TextStyle(fontSize: 80),
-          ),
-
-          // Temperature (rounded to 1 decimal place)
-          Text(
-            '${weather.temperature.toStringAsFixed(1)}°C',
-            style: const TextStyle(
-              fontSize: 64,
-              fontWeight: FontWeight.w300,
-              color: Colors.white,
-            ),
-          ),
-
-          // Weather condition (e.g. "clear sky")
-          Text(
-            weather.condition.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 18,
-              color: Colors.white70,
-              letterSpacing: 1.2,
-            ),
-          ),
-
-          const SizedBox(height: 40),
-
-          // ── Extra Details Row ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _infoTile(
-                icon: Icons.thermostat,
-                label: 'Feels Like',
-                value: '${weather.feelsLike.toStringAsFixed(1)}°C',
+              Icon(
+                Icons.cloud_off_rounded,
+                color: textColor.withValues(alpha: 0.6),
+                size: 70,
               ),
-              _infoTile(
-                icon: Icons.water_drop,
-                label: 'Humidity',
-                value: '${weather.humidity}%',
+              const SizedBox(height: 18),
+              Text(
+                _error!,
+                style: GoogleFonts.poppins(color: textColor, fontSize: 15),
+                textAlign: TextAlign.center,
               ),
-              _infoTile(
-                icon: Icons.air,
-                label: 'Wind',
-                value: '${weather.windSpeed} m/s',
+              const SizedBox(height: 20),
+              TextButton.icon(
+                onPressed: () => _fetchWeather('London'),
+                icon: Icon(Icons.refresh, color: textColor),
+                label: Text(
+                  'Try London',
+                  style: GoogleFonts.poppins(color: textColor),
+                ),
               ),
             ],
           ),
-        ],
+        ),
+      );
+    }
+
+    if (_weather == null) return const SizedBox.shrink();
+    return _buildWeatherContent(_weather!, textColor);
+  }
+
+  // ── Premium weather content ───────────────────────────────────────────────
+  Widget _buildWeatherContent(WeatherModel w, Color textColor) {
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: SlideTransition(
+        position: _slideAnim,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 24),
+
+              // City name
+              Text(
+                w.cityName,
+                style: GoogleFonts.poppins(
+                  color: textColor,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 4),
+
+              // Condition
+              Text(
+                w.condition,
+                style: GoogleFonts.poppins(
+                  color: textColor.withValues(alpha: 0.75),
+                  fontSize: 16,
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // Weather emoji
+              Text(
+                WeatherModel.emojiFromCode(w.weatherCode, isDay: w.isDay),
+                style: const TextStyle(fontSize: 90),
+              ),
+
+              // Huge temperature
+              Text(
+                '${w.temperature.toStringAsFixed(0)}°',
+                style: GoogleFonts.poppins(
+                  color: textColor,
+                  fontSize: 100,
+                  fontWeight: FontWeight.w200,
+                  height: 1.0,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Day / Night pill badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Text(
+                  w.isDay ? '☀️  Day' : '🌙  Night',
+                  style: GoogleFonts.poppins(
+                    color: textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Glass info cards
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: WeatherCard(
+                        icon: Icons.thermostat_rounded,
+                        label: 'Feels Like',
+                        value: '${w.feelsLike.toStringAsFixed(0)}°C',
+                        textColor: textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: WeatherCard(
+                        icon: Icons.water_drop_outlined,
+                        label: 'Humidity',
+                        value: '${w.humidity}%',
+                        textColor: textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: WeatherCard(
+                        icon: Icons.air_rounded,
+                        label: 'Wind',
+                        value: '${w.windSpeed.toStringAsFixed(1)} m/s',
+                        textColor: textColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Hourly forecast
+              _sectionTitle('Hourly Forecast', textColor),
+              const SizedBox(height: 12),
+              HourlyList(hourly: w.hourlyForecast, textColor: textColor),
+
+              const SizedBox(height: 28),
+
+              // 7-day forecast
+              _sectionTitle('7-Day Forecast', textColor),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: WeeklyList(daily: w.dailyForecast, textColor: textColor),
+              ),
+
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  // ── Info Tile Helper ───────────────────────────────────────────────────────
-  // A small card showing an icon, a label, and a value.
-  Widget _infoTile({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white, size: 28),
-          const SizedBox(height: 6),
-          Text(label,
-              style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold)),
-        ],
+  Widget _sectionTitle(String title, Color textColor) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Text(
+          title,
+          style: GoogleFonts.poppins(
+            color: textColor.withValues(alpha: 0.88),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
+        ),
       ),
     );
   }
