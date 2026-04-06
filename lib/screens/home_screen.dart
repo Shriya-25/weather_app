@@ -7,6 +7,8 @@ import '../widgets/weather_card.dart';
 import '../widgets/hourly_list.dart';
 import '../widgets/weekly_list.dart';
 
+const String _kDefaultCity = 'London';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -48,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
 
     // Load a default city on startup
-    _fetchWeather('London');
+    _fetchWeather(_kDefaultCity);
   }
 
   @override
