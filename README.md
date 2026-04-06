@@ -1,17 +1,38 @@
-# weather_app
+# Weather App
 
-A new Flutter project.
+A beautiful Flutter weather app with glassmorphism UI, hourly & 7-day forecasts, and dynamic gradients — powered by the free [Open-Meteo API](https://open-meteo.com/) (no API key required).
+
+## Features
+
+- Search any city worldwide
+- Current temperature, feels-like, humidity & wind speed
+- 24-hour hourly forecast
+- 7-day daily forecast
+- Dynamic background gradients based on weather condition & time of day
+- Glassmorphism card design with smooth animations
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+### Prerequisites
 
-A few resources to get you started if this is your first Flutter project:
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.11
+- Android Studio / VS Code with Flutter extension
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+### Run the app
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run
+```
+
+No API key or account needed — the app works out of the box.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | Dart 3 |
+| Framework | Flutter |
+| HTTP | `package:http` |
+| Fonts | `google_fonts` |
+| Weather API | Open-Meteo (free, no key) |
