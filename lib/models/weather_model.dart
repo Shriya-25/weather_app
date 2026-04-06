@@ -133,4 +133,35 @@ class WeatherModel {
       return const Color(0xFF2d3436);
     return Colors.white;
   }
+
+  @override
+  String toString() =>
+      'WeatherModel(city: $cityName, temp: ${temperature.toStringAsFixed(1)}°C, '
+      'condition: $condition, isDay: $isDay)';
+
+  WeatherModel copyWith({
+    String? cityName,
+    double? temperature,
+    String? condition,
+    double? feelsLike,
+    int? humidity,
+    double? windSpeed,
+    int? weatherCode,
+    bool? isDay,
+    List<HourlyForecast>? hourlyForecast,
+    List<DailyForecast>? dailyForecast,
+  }) {
+    return WeatherModel(
+      cityName: cityName ?? this.cityName,
+      temperature: temperature ?? this.temperature,
+      condition: condition ?? this.condition,
+      feelsLike: feelsLike ?? this.feelsLike,
+      humidity: humidity ?? this.humidity,
+      windSpeed: windSpeed ?? this.windSpeed,
+      weatherCode: weatherCode ?? this.weatherCode,
+      isDay: isDay ?? this.isDay,
+      hourlyForecast: hourlyForecast ?? this.hourlyForecast,
+      dailyForecast: dailyForecast ?? this.dailyForecast,
+    );
+  }
 }
