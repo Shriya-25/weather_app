@@ -1,167 +1,111 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-// ── Hourly Forecast ────────────────────────────────────────────────────────
 class HourlyForecast {
-  final String time; // e.g. "14:00"
-  final double temp; // celsius
-  final int weatherCode; // WMO code
+  final DateTime time;
+  final double temp;
+  final String iconCode;
+  final String condition;
 
   const HourlyForecast({
     required this.time,
     required this.temp,
-    required this.weatherCode,
+    required this.iconCode,
+    required this.condition,
   });
 }
 
-// ── Daily Forecast ─────────────────────────────────────────────────────────
 class DailyForecast {
-  final String day; // "Today", "Mon", "Tue" etc.
-  final String date; // "Apr 3"
-  final double maxTemp;
+  final DateTime date;
   final double minTemp;
-  final int weatherCode;
+  final double maxTemp;
+  final String iconCode;
+  final String condition;
 
   const DailyForecast({
-    required this.day,
     required this.date,
-    required this.maxTemp,
     required this.minTemp,
-    required this.weatherCode,
+    required this.maxTemp,
+    required this.iconCode,
+    required this.condition,
   });
+
+  String get dayLabel {
+    final now = DateTime.now();
+    final isToday = date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+    return isToday ? 'Today' : DateFormat('EEE').format(date);
+  }
+
+  String get dateLabel => DateFormat('MMM d').format(date);
 }
 
-// ── Main Weather Model ─────────────────────────────────────────────────────
-class WeatherModel {
+class WeatherData {
   final String cityName;
   final double temperature;
   final String condition;
+  final String iconCode;
   final double feelsLike;
   final int humidity;
   final double windSpeed;
-  final int weatherCode;
   final bool isDay;
-  final List<HourlyForecast> hourlyForecast;
-  final List<DailyForecast> dailyForecast;
+  final List<HourlyForecast> hourly;
+  final List<DailyForecast> daily;
 
-  const WeatherModel({
+  const WeatherData({
     required this.cityName,
     required this.temperature,
     required this.condition,
+    required this.iconCode,
     required this.feelsLike,
     required this.humidity,
     required this.windSpeed,
-    required this.weatherCode,
     required this.isDay,
-    required this.hourlyForecast,
-    required this.dailyForecast,
+    required this.hourly,
+    required this.daily,
   });
 
-  // WMO weather code → human-readable description
-  static String descriptionFromCode(int code) {
-    const map = {
-      0: 'Clear Sky',
-      1: 'Mainly Clear',
-      2: 'Partly Cloudy',
-      3: 'Overcast',
-      45: 'Foggy',
-      48: 'Icy Fog',
-      51: 'Light Drizzle',
-      53: 'Drizzle',
-      55: 'Dense Drizzle',
-      61: 'Slight Rain',
-      63: 'Moderate Rain',
-      65: 'Heavy Rain',
-      71: 'Slight Snow',
-      73: 'Moderate Snow',
-      75: 'Heavy Snow',
-      80: 'Rain Showers',
-      81: 'Heavy Showers',
-      82: 'Violent Showers',
-      95: 'Thunderstorm',
-      99: 'Thunderstorm & Hail',
-    };
-    return map[code] ?? 'Unknown';
-  }
-
-  // WMO code → emoji
-  static String emojiFromCode(int code, {bool isDay = true}) {
-    if (code == 0) return isDay ? '☀️' : '🌙';
-    if (code == 1) return isDay ? '🌤️' : '🌙';
-    if (code == 2) return '⛅';
-    if (code == 3) return '☁️';
-    if (code == 45 || code == 48) return '🌫️';
-    if (code >= 51 && code <= 55) return '🌦️';
-    if (code >= 61 && code <= 65) return '🌧️';
-    if (code >= 71 && code <= 75) return '❄️';
-    if (code >= 80 && code <= 82) return '⛈️';
-    if (code >= 95) return '🌩️';
+  static String emojiFromIcon(String iconCode) {
+    if (iconCode.startsWith('01')) return iconCode.endsWith('d') ? '☀️' : '🌙';
+    if (iconCode.startsWith('02')) return '🌤️';
+    if (iconCode.startsWith('03') || iconCode.startsWith('04')) return '☁️';
+    if (iconCode.startsWith('09') || iconCode.startsWith('10')) return '🌧️';
+    if (iconCode.startsWith('11')) return '⛈️';
+    if (iconCode.startsWith('13')) return '❄️';
+    if (iconCode.startsWith('50')) return '🌫️';
     return '🌡️';
   }
 
-  // Dynamic background gradient based on weather + time of day
   List<Color> get gradientColors {
     if (!isDay) {
-      return [
-        const Color(0xFF0F2027),
-        const Color(0xFF203A43),
-        const Color(0xFF2C5364),
-      ];
+      return const [Color(0xFF0A1026), Color(0xFF1B2A5B), Color(0xFF3B2F66)];
     }
-    if (weatherCode == 0 || weatherCode == 1) {
-      return [const Color(0xFFFF8C42), const Color(0xFFFF5E62)]; // Sunny
+
+    if (iconCode.startsWith('01')) {
+      return const [Color(0xFFFFA85B), Color(0xFFFF6B95), Color(0xFFFF8E53)];
     }
-    if (weatherCode == 2 || weatherCode == 3) {
-      return [const Color(0xFF757F9A), const Color(0xFFD7DDE8)]; // Cloudy
+
+    if (iconCode.startsWith('02') ||
+        iconCode.startsWith('03') ||
+        iconCode.startsWith('04')) {
+      return const [Color(0xFF8EA7C2), Color(0xFFB7C8D9), Color(0xFF8CA0B5)];
     }
-    if (weatherCode >= 71 && weatherCode <= 75) {
-      return [const Color(0xFFE0EAFC), const Color(0xFFCFDEF3)]; // Snow
+
+    if (iconCode.startsWith('09') || iconCode.startsWith('10')) {
+      return const [Color(0xFF4A607A), Color(0xFF6D8AA9), Color(0xFF445D7A)];
     }
-    if (weatherCode >= 51 && weatherCode <= 82) {
-      return [const Color(0xFF373B44), const Color(0xFF4286f4)]; // Rain
-    }
-    if (weatherCode >= 95) {
-      return [const Color(0xFF1c1c1c), const Color(0xFF4B4B4B)]; // Storm
-    }
-    return [const Color(0xFF1a237e), const Color(0xFF42a5f5)];
+
+    return const [Color(0xFF6D7A91), Color(0xFF8FA0B4), Color(0xFF5A6B80)];
   }
 
-  // Text colour that contrasts well against the gradient
   Color get textColor {
-    if ((weatherCode == 2 || weatherCode == 3) && isDay)
-      return const Color(0xFF2d3436);
-    if (weatherCode >= 71 && weatherCode <= 75 && isDay)
-      return const Color(0xFF2d3436);
+    if (isDay &&
+        (iconCode.startsWith('03') ||
+            iconCode.startsWith('04') ||
+            iconCode.startsWith('50'))) {
+      return const Color(0xFF1E2C3D);
+    }
     return Colors.white;
-  }
-
-  @override
-  String toString() =>
-      'WeatherModel(city: $cityName, temp: ${temperature.toStringAsFixed(1)}°C, '
-      'condition: $condition, isDay: $isDay)';
-
-  WeatherModel copyWith({
-    String? cityName,
-    double? temperature,
-    String? condition,
-    double? feelsLike,
-    int? humidity,
-    double? windSpeed,
-    int? weatherCode,
-    bool? isDay,
-    List<HourlyForecast>? hourlyForecast,
-    List<DailyForecast>? dailyForecast,
-  }) {
-    return WeatherModel(
-      cityName: cityName ?? this.cityName,
-      temperature: temperature ?? this.temperature,
-      condition: condition ?? this.condition,
-      feelsLike: feelsLike ?? this.feelsLike,
-      humidity: humidity ?? this.humidity,
-      windSpeed: windSpeed ?? this.windSpeed,
-      weatherCode: weatherCode ?? this.weatherCode,
-      isDay: isDay ?? this.isDay,
-      hourlyForecast: hourlyForecast ?? this.hourlyForecast,
-      dailyForecast: dailyForecast ?? this.dailyForecast,
-    );
   }
 }
