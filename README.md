@@ -1,38 +1,52 @@
-# Weather App
+# Atmos Weather App
 
-A beautiful Flutter weather app with glassmorphism UI, hourly & 7-day forecasts, and dynamic gradients — powered by the free [Open-Meteo API](https://open-meteo.com/) (no API key required).
+Premium Flutter weather app with gradient atmospheres, glassmorphism UI, location-based weather, city search, and smooth motion.
 
-## Features
+## Highlights
 
-- Search any city worldwide
-- Current temperature, feels-like, humidity & wind speed
-- 24-hour hourly forecast
-- 7-day daily forecast
-- Dynamic background gradients based on weather condition & time of day
-- Glassmorphism card design with smooth animations
-
-## Getting Started
-
-### Prerequisites
-
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.11
-- Android Studio / VS Code with Flutter extension
-
-### Run the app
-
-```bash
-flutter pub get
-flutter run
-```
-
-No API key or account needed — the app works out of the box.
+- Auto-detect current location using GPS permission
+- Search any city from the top search bar
+- Real-time weather from OpenWeather API
+- Center hero section with weather icon and large temperature
+- Glass cards for feels like, humidity, and wind
+- Horizontal hourly forecast and weekly forecast sections
+- Animated gradients based on weather and day/night
+- Fade and slide transitions for polished interactions
+- Shimmer loading skeleton and robust error handling
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Dart 3 |
-| Framework | Flutter |
-| HTTP | `package:http` |
-| Fonts | `google_fonts` |
-| Weather API | Open-Meteo (free, no key) |
+- Flutter (Material 3)
+- http
+- geolocator
+- intl
+- google_fonts
+- shimmer
+- lottie (optional weather icon mode)
+
+## Project Structure
+
+- lib/models: data models and weather presentation helpers
+- lib/services: API and location services
+- lib/screens: main UI screen
+- lib/widgets: reusable premium components
+
+## Setup
+
+1. Create an OpenWeather API key: https://openweathermap.org/api
+2. Install dependencies:
+
+```bash
+flutter pub get
+```
+
+3. Run with API key:
+
+```bash
+flutter run --dart-define=OPENWEATHER_API_KEY=YOUR_API_KEY
+```
+
+## Notes
+
+- If location permission is denied, the app falls back to London and search remains fully available.
+- On city not found or network issues, a user-friendly retry panel is shown.
