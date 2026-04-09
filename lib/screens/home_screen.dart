@@ -1,13 +1,17 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../models/weather_model.dart';
 import '../services/api_service.dart';
-import '../widgets/weather_card.dart';
+import '../services/location_service.dart';
 import '../widgets/hourly_list.dart';
+import '../widgets/loading_skeleton.dart';
+import '../widgets/weather_card.dart';
+import '../widgets/weather_icon_view.dart';
+import '../widgets/weather_illustration.dart';
 import '../widgets/weekly_list.dart';
 
-const String _kDefaultCity = 'London';
+enum WeatherUiState { loading, loaded, error }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,18 +21,19 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  final ApiService _api = ApiService();
+  final ApiService _apiService = ApiService();
+  final LocationService _locationService = LocationService();
   final TextEditingController _searchController = TextEditingController();
 
-  WeatherModel? _weather;
-  bool _isLoading = false;
+  WeatherData? _weather;
+  WeatherUiState _state = WeatherUiState.loading;
   String? _error;
 
-  // ── Animation controllers ─────────────────────────────────────────────────
   late final AnimationController _fadeController;
-  late final AnimationController _slideController;
-  late final Animation<double> _fadeAnim;
-  late final Animation<Offset> _slideAnim;
+  late final AnimationController _cardsController;
+
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _cardsSlideAnimation;
 
   @override
   void initState() {
@@ -36,355 +41,342 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 850),
     );
-    _slideController = AnimationController(
+    _cardsController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
 
-    _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
-        );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
+    _cardsSlideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.20), end: Offset.zero).animate(
+      CurvedAnimation(parent: _cardsController, curve: Curves.easeOutCubic),
+    );
 
-    // Load a default city on startup
-    _fetchWeather(_kDefaultCity);
+    _loadInitialWeather();
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
     _searchController.dispose();
+    _fadeController.dispose();
+    _cardsController.dispose();
     super.dispose();
   }
 
-  // ── Fetch weather ─────────────────────────────────────────────────────────
-  Future<void> _fetchWeather(String city) async {
+  Future<void> _loadInitialWeather() async {
     setState(() {
-      _isLoading = true;
+      _state = WeatherUiState.loading;
       _error = null;
     });
-    _fadeController.reset();
-    _slideController.reset();
 
     try {
-      final weather = await _api.fetchWeather(city);
-      if (!mounted) return;
-      setState(() {
-        _weather = weather;
-        _isLoading = false;
-      });
-      _fadeController.forward();
-      _slideController.forward();
+      final position = await _locationService.getCurrentPosition();
+      final weather = await _apiService.fetchByCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      _showWeather(weather, setSearchText: true);
+    } catch (_) {
+      await _searchCity('London', setSearchText: true);
+    }
+  }
+
+  Future<void> _searchCity(String city, {bool setSearchText = false}) async {
+    final trimmed = city.trim();
+    if (trimmed.isEmpty) return;
+
+    setState(() {
+      _state = WeatherUiState.loading;
+      _error = null;
+    });
+
+    _fadeController.reset();
+    _cardsController.reset();
+
+    try {
+      final weather = await _apiService.fetchByCity(trimmed);
+      _showWeather(weather, setSearchText: setSearchText);
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        _state = WeatherUiState.error;
         _error = e.toString().replaceFirst('Exception: ', '');
-        _isLoading = false;
       });
     }
   }
 
-  // ── Root build ────────────────────────────────────────────────────────────
+  void _showWeather(WeatherData weather, {bool setSearchText = false}) {
+    if (!mounted) return;
+
+    final cityPart = weather.cityName.split(',').first;
+
+    setState(() {
+      _weather = weather;
+      _state = WeatherUiState.loaded;
+      _error = null;
+      if (setSearchText) {
+        _searchController.text = cityPart;
+      }
+    });
+
+    _fadeController.forward();
+    _cardsController.forward();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final gradientColors =
-        _weather?.gradientColors ??
-        [const Color(0xFF1a237e), const Color(0xFF42a5f5)];
-    final textColor = _weather?.textColor ?? Colors.white;
+    final weather = _weather;
+    final bgColors = weather?.gradientColors ??
+        const [Color(0xFF4A607A), Color(0xFF6D8AA9), Color(0xFF445D7A)];
+    final textColor = weather?.textColor ?? Colors.white;
 
     return Scaffold(
       body: AnimatedContainer(
-        duration: const Duration(milliseconds: 800),
+        duration: const Duration(milliseconds: 750),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: gradientColors,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            colors: bgColors,
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildSearchBar(textColor),
-              Expanded(child: _buildBody(textColor)),
-            ],
-          ),
+        child: Stack(
+          children: [
+            WeatherIllustration(
+              isDay: weather?.isDay ?? true,
+              isSunny: (weather?.iconCode.startsWith('01') ?? false),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildTopArea(textColor),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      child: _buildStateBody(textColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ── Search bar ────────────────────────────────────────────────────────────
-  Widget _buildSearchBar(Color textColor) {
+  Widget _buildTopArea(Color textColor) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: TextField(
-                  controller: _searchController,
-                  style: GoogleFonts.poppins(color: textColor),
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'Search city...',
-                    hintStyle: GoogleFonts.poppins(
-                      color: textColor.withValues(alpha: 0.55),
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: textColor.withValues(alpha: 0.7),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.15),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
-                    ),
-                  ),
-                  onSubmitted: (v) {
-                    final city = v.trim();
-                    if (city.isNotEmpty) _fetchWeather(city);
-                  },
+          Row(
+            children: [
+              Text(
+                'Atmos',
+                style: GoogleFonts.playfairDisplay(
+                  color: textColor,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
                 ),
               ),
-            ),
+              const Spacer(),
+              IconButton(
+                onPressed: _loadInitialWeather,
+                icon: Icon(
+                  Icons.my_location_rounded,
+                  color: textColor,
+                  size: 22,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          _glassIconButton(
-            icon: Icons.refresh_rounded,
-            textColor: textColor,
-            onTap: () {
-              final city = _searchController.text.trim();
-              if (city.isNotEmpty) _fetchWeather(city);
-            },
+          const SizedBox(height: 8),
+          TextField(
+            controller: _searchController,
+            style: GoogleFonts.poppins(color: textColor),
+            textInputAction: TextInputAction.search,
+            onSubmitted: (value) => _searchCity(value),
+            decoration: InputDecoration(
+              hintText: 'Search city',
+              hintStyle: GoogleFonts.poppins(
+                color: textColor.withValues(alpha: 0.62),
+                fontSize: 14,
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: textColor.withValues(alpha: 0.8),
+              ),
+              suffixIcon: IconButton(
+                onPressed: () => _searchCity(_searchController.text),
+                icon: Icon(
+                  Icons.arrow_circle_right_rounded,
+                  color: textColor,
+                ),
+              ),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.15),
+              border: OutlineInputBorder(
+                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _glassIconButton({
-    required IconData icon,
-    required Color textColor,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(50),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(50),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(50),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+  Widget _buildStateBody(Color textColor) {
+    switch (_state) {
+      case WeatherUiState.loading:
+        return const LoadingSkeleton(key: ValueKey('loading'));
+      case WeatherUiState.error:
+        return _buildError(textColor);
+      case WeatherUiState.loaded:
+        if (_weather == null) {
+          return _buildError(textColor);
+        }
+        return _buildWeather(textColor, _weather!);
+    }
+  }
+
+  Widget _buildError(Color textColor) {
+    return Center(
+      key: const ValueKey('error'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, color: textColor, size: 54),
+            const SizedBox(height: 10),
+            Text(
+              _error ?? 'Unable to load weather.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(color: textColor, fontSize: 14),
             ),
-            child: Icon(icon, color: textColor, size: 22),
-          ),
+            const SizedBox(height: 16),
+            FilledButton.tonal(
+              onPressed: _loadInitialWeather,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                foregroundColor: textColor,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ── Body: loading / error / content ──────────────────────────────────────
-  Widget _buildBody(Color textColor) {
-    if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: textColor, strokeWidth: 2.5),
-      );
-    }
+  Widget _buildWeather(Color textColor, WeatherData weather) {
+    return LayoutBuilder(
+      key: const ValueKey('weather'),
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 370;
+        final tempSize = isCompact ? 84.0 : 100.0;
 
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.cloud_off_rounded,
-                color: textColor.withValues(alpha: 0.6),
-                size: 70,
-              ),
-              const SizedBox(height: 18),
-              Text(
-                _error!,
-                style: GoogleFonts.poppins(color: textColor, fontSize: 15),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              TextButton.icon(
-                onPressed: () => _fetchWeather('London'),
-                icon: Icon(Icons.refresh, color: textColor),
-                label: Text(
-                  'Try London',
-                  style: GoogleFonts.poppins(color: textColor),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_weather == null) return const SizedBox.shrink();
-    return _buildWeatherContent(_weather!, textColor);
-  }
-
-  // ── Premium weather content ───────────────────────────────────────────────
-  Widget _buildWeatherContent(WeatherModel w, Color textColor) {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: SlideTransition(
-        position: _slideAnim,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 24),
-
-              // City name
-              Text(
-                w.cityName,
-                style: GoogleFonts.poppins(
-                  color: textColor,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 4),
-
-              // Condition
-              Text(
-                w.condition,
-                style: GoogleFonts.poppins(
-                  color: textColor.withValues(alpha: 0.75),
-                  fontSize: 16,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // Weather emoji
-              Text(
-                WeatherModel.emojiFromCode(w.weatherCode, isDay: w.isDay),
-                style: const TextStyle(fontSize: 90),
-              ),
-
-              // Huge temperature
-              Text(
-                '${w.temperature.toStringAsFixed(0)}°',
-                style: GoogleFonts.poppins(
-                  color: textColor,
-                  fontSize: 100,
-                  fontWeight: FontWeight.w200,
-                  height: 1.0,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Day / Night pill badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.25),
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _cardsSlideAnimation,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Text(
+                    weather.cityName,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: textColor,
+                      fontSize: isCompact ? 24 : 30,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                child: Text(
-                  w.isDay ? '☀️  Day' : '🌙  Night',
-                  style: GoogleFonts.poppins(
-                    color: textColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 2),
+                  Text(
+                    weather.condition,
+                    style: GoogleFonts.poppins(
+                      color: textColor.withValues(alpha: 0.78),
+                      fontSize: 15,
+                    ),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Glass info cards
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: WeatherCard(
-                        icon: Icons.thermostat_rounded,
-                        label: 'Feels Like',
-                        value: '${w.feelsLike.toStringAsFixed(0)}°C',
-                        textColor: textColor,
+                  const SizedBox(height: 8),
+                  WeatherIconView(iconCode: weather.iconCode, useLottie: false),
+                  Transform.translate(
+                    offset: const Offset(0, -8),
+                    child: Text(
+                      '${weather.temperature.toStringAsFixed(0)}°',
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: tempSize,
+                        fontWeight: FontWeight.w200,
+                        height: 1.0,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: WeatherCard(
-                        icon: Icons.water_drop_outlined,
-                        label: 'Humidity',
-                        value: '${w.humidity}%',
-                        textColor: textColor,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: WeatherCard(
+                            icon: Icons.thermostat_rounded,
+                            label: 'Feels Like',
+                            value: '${weather.feelsLike.toStringAsFixed(0)}°C',
+                            textColor: textColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: WeatherCard(
+                            icon: Icons.water_drop_outlined,
+                            label: 'Humidity',
+                            value: '${weather.humidity}%',
+                            textColor: textColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: WeatherCard(
+                            icon: Icons.air_rounded,
+                            label: 'Wind',
+                            value: '${weather.windSpeed.toStringAsFixed(1)} m/s',
+                            textColor: textColor,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: WeatherCard(
-                        icon: Icons.air_rounded,
-                        label: 'Wind',
-                        value: '${w.windSpeed.toStringAsFixed(1)} m/s',
-                        textColor: textColor,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 24),
+                  _sectionTitle('Hourly Forecast', textColor),
+                  const SizedBox(height: 12),
+                  HourlyList(hourly: weather.hourly, textColor: textColor),
+                  const SizedBox(height: 24),
+                  _sectionTitle('Weekly Forecast', textColor),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: WeeklyList(daily: weather.daily, textColor: textColor),
+                  ),
+                  const SizedBox(height: 34),
+                ],
               ),
-
-              const SizedBox(height: 32),
-
-              // Hourly forecast
-              _sectionTitle('Hourly Forecast', textColor),
-              const SizedBox(height: 12),
-              HourlyList(hourly: w.hourlyForecast, textColor: textColor),
-
-              const SizedBox(height: 28),
-
-              // 7-day forecast
-              _sectionTitle('7-Day Forecast', textColor),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: WeeklyList(daily: w.dailyForecast, textColor: textColor),
-              ),
-
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -396,10 +388,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Text(
           title,
           style: GoogleFonts.poppins(
-            color: textColor.withValues(alpha: 0.88),
+            color: textColor.withValues(alpha: 0.92),
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            letterSpacing: 0.3,
           ),
         ),
       ),
