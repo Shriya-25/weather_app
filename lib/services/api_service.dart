@@ -1,166 +1,168 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
+import '../config/app_config.dart';
 import '../models/weather_model.dart';
 
-// ApiService talks to two completely FREE APIs — no account or key needed:
-//
-//  1. Open-Meteo Geocoding  → city name → latitude + longitude
-//     https://geocoding-api.open-meteo.com
-//
-//  2. Open-Meteo Forecast   → lat/lon → current + hourly + daily weather
-//     https://api.open-meteo.com
 class ApiService {
-  // ── Step 1: Geocode ────────────────────────────────────────────────────────
-  // Converts a city name (e.g. "Mumbai") into its GPS coordinates.
-  Future<Map<String, dynamic>> _geocode(String city) async {
-    final url = Uri.parse(
-      'https://geocoding-api.open-meteo.com/v1/search'
-      '?name=${Uri.encodeComponent(city)}&count=1&language=en&format=json',
+  static const _baseUrl = 'https://api.openweathermap.org/data/2.5';
+
+  Future<WeatherData> fetchByCity(String city) async {
+    AppConfig.validate();
+
+    final currentUrl = Uri.parse(
+      '$_baseUrl/weather?q=${Uri.encodeComponent(city)}&appid=${AppConfig.openWeatherApiKey}&units=metric',
+    );
+    final forecastUrl = Uri.parse(
+      '$_baseUrl/forecast?q=${Uri.encodeComponent(city)}&appid=${AppConfig.openWeatherApiKey}&units=metric',
     );
 
-    final res = await http.get(url);
-
-    if (res.statusCode != 200) {
-      throw Exception('Network error. Check your internet connection.');
-    }
-
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-
-    if (data['results'] == null || (data['results'] as List).isEmpty) {
-      throw Exception(
-        'City "$city" not found. Check the spelling and try again.',
-      );
-    }
-
-    final r = data['results'][0] as Map<String, dynamic>;
-    return {
-      'name': r['name'],
-      'country': r['country'] ?? '',
-      'latitude': r['latitude'],
-      'longitude': r['longitude'],
-    };
+    return _fetchAndBuild(currentUrl, forecastUrl);
   }
 
-  // ── Step 2: Fetch Full Weather ─────────────────────────────────────────────
-  // Uses the coordinates to get current + 24h hourly + 7-day daily weather.
-  Future<WeatherModel> fetchWeather(String city) async {
-    final geo = await _geocode(city);
-    final lat = geo['latitude'];
-    final lon = geo['longitude'];
-    final cityName = '${geo['name']}, ${geo['country']}';
+  Future<WeatherData> fetchByCoordinates(double lat, double lon) async {
+    AppConfig.validate();
 
-    final url = Uri.parse(
-      'https://api.open-meteo.com/v1/forecast'
-      '?latitude=$lat&longitude=$lon'
-      '&current=temperature_2m,apparent_temperature,'
-      'relative_humidity_2m,wind_speed_10m,weather_code,is_day'
-      '&hourly=temperature_2m,weather_code'
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min'
-      '&timezone=auto'
-      '&wind_speed_unit=ms'
-      '&forecast_days=7',
+    final currentUrl = Uri.parse(
+      '$_baseUrl/weather?lat=$lat&lon=$lon&appid=${AppConfig.openWeatherApiKey}&units=metric',
+    );
+    final forecastUrl = Uri.parse(
+      '$_baseUrl/forecast?lat=$lat&lon=$lon&appid=${AppConfig.openWeatherApiKey}&units=metric',
     );
 
-    final res = await http.get(url);
+    return _fetchAndBuild(currentUrl, forecastUrl);
+  }
 
-    if (res.statusCode != 200) {
-      throw Exception('Failed to load weather data. Please try again.');
-    }
+  Future<WeatherData> _fetchAndBuild(Uri currentUrl, Uri forecastUrl) async {
+    try {
+      final responses = await Future.wait([
+        http.get(currentUrl).timeout(const Duration(seconds: 12)),
+        http.get(forecastUrl).timeout(const Duration(seconds: 12)),
+      ]);
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final current = data['current'] as Map<String, dynamic>;
-    final hourlyData = data['hourly'] as Map<String, dynamic>;
-    final dailyData = data['daily'] as Map<String, dynamic>;
+      final currentRes = responses[0];
+      final forecastRes = responses[1];
 
-    final int code = (current['weather_code'] as num).toInt();
-    final bool isDay = (current['is_day'] as num) == 1;
-
-    // ── Parse Hourly ──────────────────────────────────────────────────────
-    // Open-Meteo returns 168 hourly values (7 days × 24 hours).
-    // We find the current hour and show the next 24.
-    final List<String> hourlyTimes = List<String>.from(hourlyData['time']);
-    final List<double> hourlyTemps = (hourlyData['temperature_2m'] as List)
-        .map((e) => (e as num).toDouble())
-        .toList();
-    final List<int> hourlyCodes = (hourlyData['weather_code'] as List)
-        .map((e) => (e as num).toInt())
-        .toList();
-
-    // Find the first hourly slot that is >= now
-    final now = DateTime.now();
-    int startIdx = 0;
-    for (int i = 0; i < hourlyTimes.length; i++) {
-      if (!DateTime.parse(hourlyTimes[i]).isBefore(now)) {
-        startIdx = i;
-        break;
+      if (currentRes.statusCode == 404 || forecastRes.statusCode == 404) {
+        throw Exception('City not found. Please search for a valid city name.');
       }
+
+      if (currentRes.statusCode != 200 || forecastRes.statusCode != 200) {
+        throw Exception('Unable to fetch weather right now. Please try again.');
+      }
+
+      final current = jsonDecode(currentRes.body) as Map<String, dynamic>;
+      final forecast = jsonDecode(forecastRes.body) as Map<String, dynamic>;
+
+      return _mapToWeather(current, forecast);
+    } on TimeoutException {
+      throw Exception('Request timed out. Please check your internet and retry.');
+    } on http.ClientException {
+      throw Exception('Network error. Please check your internet connection.');
     }
+  }
 
-    final List<HourlyForecast> hourlyForecast = [];
-    for (int i = startIdx; i < startIdx + 24 && i < hourlyTimes.length; i++) {
-      final t = DateTime.parse(hourlyTimes[i]);
-      hourlyForecast.add(
-        HourlyForecast(
-          time: '${t.hour.toString().padLeft(2, '0')}:00',
-          temp: hourlyTemps[i],
-          weatherCode: hourlyCodes[i],
-        ),
-      );
-    }
+  WeatherData _mapToWeather(
+    Map<String, dynamic> current,
+    Map<String, dynamic> forecast,
+  ) {
+    final city = current['name'] as String? ?? 'Unknown';
+    final country = (current['sys'] as Map<String, dynamic>?)?['country'] as String?;
+    final cityName = country == null ? city : '$city, $country';
 
-    // ── Parse Daily ───────────────────────────────────────────────────────
-    final List<String> dailyTimes = List<String>.from(dailyData['time']);
-    final List<double> maxTemps = (dailyData['temperature_2m_max'] as List)
-        .map((e) => (e as num).toDouble())
-        .toList();
-    final List<double> minTemps = (dailyData['temperature_2m_min'] as List)
-        .map((e) => (e as num).toDouble())
-        .toList();
-    final List<int> dailyCodes = (dailyData['weather_code'] as List)
-        .map((e) => (e as num).toInt())
-        .toList();
+    final currentMain = current['main'] as Map<String, dynamic>;
+    final currentWeather =
+        (current['weather'] as List).first as Map<String, dynamic>;
+    final wind = current['wind'] as Map<String, dynamic>?;
 
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const monthNames = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+    final isDay = ((currentWeather['icon'] as String?) ?? '').endsWith('d');
 
-    final List<DailyForecast> dailyForecast = [];
-    for (int i = 0; i < dailyTimes.length; i++) {
-      final d = DateTime.parse(dailyTimes[i]);
-      dailyForecast.add(
-        DailyForecast(
-          day: i == 0 ? 'Today' : dayNames[d.weekday - 1], // 1=Mon … 7=Sun
-          date: '${monthNames[d.month - 1]} ${d.day}',
-          maxTemp: maxTemps[i],
-          minTemp: minTemps[i],
-          weatherCode: dailyCodes[i],
-        ),
-      );
-    }
+    final forecastList = (forecast['list'] as List)
+        .cast<Map<String, dynamic>>();
 
-    return WeatherModel(
+    final hourly = _buildHourly(forecastList);
+    final daily = _buildDaily(forecastList);
+
+    return WeatherData(
       cityName: cityName,
-      temperature: (current['temperature_2m'] as num).toDouble(),
-      feelsLike: (current['apparent_temperature'] as num).toDouble(),
-      humidity: (current['relative_humidity_2m'] as num).toInt(),
-      windSpeed: (current['wind_speed_10m'] as num).toDouble(),
-      condition: WeatherModel.descriptionFromCode(code),
-      weatherCode: code,
+      temperature: (currentMain['temp'] as num).toDouble(),
+      condition: _toTitleCase(currentWeather['description'] as String? ?? 'Clear'),
+      iconCode: currentWeather['icon'] as String? ?? '01d',
+      feelsLike: (currentMain['feels_like'] as num).toDouble(),
+      humidity: (currentMain['humidity'] as num).toInt(),
+      windSpeed: ((wind?['speed'] as num?) ?? 0).toDouble(),
       isDay: isDay,
-      hourlyForecast: hourlyForecast,
-      dailyForecast: dailyForecast,
+      hourly: hourly,
+      daily: daily,
     );
+  }
+
+  List<HourlyForecast> _buildHourly(List<Map<String, dynamic>> list) {
+    return list.take(8).map((item) {
+      final weather = (item['weather'] as List).first as Map<String, dynamic>;
+      return HourlyForecast(
+        time: DateTime.parse(item['dt_txt'] as String),
+        temp: ((item['main'] as Map<String, dynamic>)['temp'] as num).toDouble(),
+        iconCode: weather['icon'] as String? ?? '01d',
+        condition: weather['main'] as String? ?? 'Clear',
+      );
+    }).toList();
+  }
+
+  List<DailyForecast> _buildDaily(List<Map<String, dynamic>> list) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+
+    for (final item in list) {
+      final dt = DateTime.parse(item['dt_txt'] as String);
+      final key = '${dt.year}-${dt.month}-${dt.day}';
+      grouped.putIfAbsent(key, () => []).add(item);
+    }
+
+    final result = <DailyForecast>[];
+    for (final items in grouped.values.take(7)) {
+      double minTemp = double.infinity;
+      double maxTemp = -double.infinity;
+      Map<String, dynamic>? iconSource;
+
+      for (final item in items) {
+        final main = item['main'] as Map<String, dynamic>;
+        final min = (main['temp_min'] as num).toDouble();
+        final max = (main['temp_max'] as num).toDouble();
+        if (min < minTemp) minTemp = min;
+        if (max > maxTemp) maxTemp = max;
+
+        final dt = DateTime.parse(item['dt_txt'] as String);
+        if (iconSource == null || dt.hour == 12) {
+          iconSource = item;
+        }
+      }
+
+      final source = iconSource ?? items.first;
+      final weather = (source['weather'] as List).first as Map<String, dynamic>;
+      result.add(
+        DailyForecast(
+          date: DateTime.parse(source['dt_txt'] as String),
+          minTemp: minTemp,
+          maxTemp: maxTemp,
+          iconCode: weather['icon'] as String? ?? '01d',
+          condition: weather['main'] as String? ?? 'Clear',
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  String _toTitleCase(String input) {
+    if (input.isEmpty) return input;
+    return input
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return word;
+          return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+        })
+        .join(' ');
   }
 }
