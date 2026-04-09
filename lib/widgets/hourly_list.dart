@@ -1,9 +1,10 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/weather_model.dart';
+import 'package:intl/intl.dart';
 
-// Horizontal scrollable list of hourly forecasts
+import '../models/weather_model.dart';
+import 'glass_panel.dart';
+
 class HourlyList extends StatelessWidget {
   final List<HourlyForecast> hourly;
   final Color textColor;
@@ -13,58 +14,49 @@ class HourlyList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 120,
+      height: 124,
       child: ListView.builder(
-        scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         physics: const BouncingScrollPhysics(),
+        scrollDirection: Axis.horizontal,
         itemCount: hourly.length,
-        itemBuilder: (context, i) {
-          final h = hourly[i];
-          final isNow = i == 0; // first item is "Now"
+        itemBuilder: (context, index) {
+          final item = hourly[index];
+          final label = index == 0 ? 'Now' : DateFormat('ha').format(item.time);
 
           return Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  width: 70,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    // Current hour gets slightly more opaque background
-                    color: Colors.white.withValues(alpha: isNow ? 0.28 : 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: isNow ? 0.5 : 0.2),
+            child: SizedBox(
+              width: 78,
+              child: GlassPanel(
+                borderRadius: BorderRadius.circular(22),
+                opacity: index == 0 ? 0.2 : 0.12,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.poppins(
+                        color: textColor.withValues(alpha: 0.88),
+                        fontSize: 11,
+                        fontWeight:
+                            index == 0 ? FontWeight.w600 : FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Text(
-                        isNow ? 'Now' : h.time,
-                        style: GoogleFonts.poppins(
-                          color: textColor.withValues(alpha: 0.85),
-                          fontSize: 11,
-                          fontWeight: isNow ? FontWeight.w600 : FontWeight.w400,
-                        ),
+                    Text(
+                      WeatherData.emojiFromIcon(item.iconCode),
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    Text(
+                      '${item.temp.toStringAsFixed(0)}°',
+                      style: GoogleFonts.poppins(
+                        color: textColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
-                      Text(
-                        WeatherModel.emojiFromCode(h.weatherCode),
-                        style: const TextStyle(fontSize: 22),
-                      ),
-                      Text(
-                        '${h.temp.toStringAsFixed(0)}°',
-                        style: GoogleFonts.poppins(
-                          color: textColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
