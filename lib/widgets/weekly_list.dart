@@ -70,7 +70,7 @@ class WeeklyList extends StatelessWidget {
                     SizedBox(
                       width: 34,
                       child: Text(
-                        '${d.minTemp.toStringAsFixed(0)}°',
+                        WeatherData.formatTemp(d.minTemp),
                         textAlign: TextAlign.right,
                         style: GoogleFonts.poppins(
                           color: textColor.withValues(alpha: 0.55),
@@ -84,7 +84,7 @@ class WeeklyList extends StatelessWidget {
                     SizedBox(
                       width: 34,
                       child: Text(
-                        '${d.maxTemp.toStringAsFixed(0)}°',
+                        WeatherData.formatTemp(d.maxTemp),
                         style: GoogleFonts.poppins(
                           color: textColor,
                           fontSize: 12,

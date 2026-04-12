@@ -333,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: WeatherCard(
                             icon: Icons.thermostat_rounded,
                             label: 'Feels Like',
-                            value: '${weather.feelsLike.toStringAsFixed(0)}°C',
+                            value: '${WeatherData.formatTemp(weather.feelsLike)}C',
                             textColor: textColor,
                           ),
                         ),
@@ -351,8 +351,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: WeatherCard(
                             icon: Icons.air_rounded,
                             label: 'Wind',
-                            value:
-                                '${weather.windSpeed.toStringAsFixed(1)} m/s',
+                            value: WeatherData.formatWindMs(weather.windSpeed),
                             textColor: textColor,
                           ),
                         ),

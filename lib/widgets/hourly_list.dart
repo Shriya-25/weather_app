@@ -53,7 +53,7 @@ class HourlyList extends StatelessWidget {
                       style: const TextStyle(fontSize: 20),
                     ),
                     Text(
-                      '${item.temp.toStringAsFixed(0)}°',
+                      WeatherData.formatTemp(item.temp),
                       style: GoogleFonts.poppins(
                         color: textColor,
                         fontSize: 13,
