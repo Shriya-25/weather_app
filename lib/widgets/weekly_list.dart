@@ -12,11 +12,13 @@ class WeeklyList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visibleDays = daily.take(7).toList();
+
     return GlassPanel(
       borderRadius: BorderRadius.circular(24),
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
-        children: daily.take(7).toList().asMap().entries.map((entry) {
+        children: visibleDays.asMap().entries.map((entry) {
           final index = entry.key;
           final d = entry.value;
 
@@ -93,7 +95,7 @@ class WeeklyList extends StatelessWidget {
                   ],
                 ),
               ),
-              if (index != daily.length - 1)
+              if (index != visibleDays.length - 1)
                 Divider(
                   height: 1,
                   color: textColor.withValues(alpha: 0.12),
