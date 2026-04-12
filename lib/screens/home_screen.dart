@@ -54,8 +54,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
     _cardsSlideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.20), end: Offset.zero).animate(
-      CurvedAnimation(parent: _cardsController, curve: Curves.easeOutCubic),
-    );
+          CurvedAnimation(parent: _cardsController, curve: Curves.easeOutCubic),
+        );
 
     _loadInitialWeather();
   }
@@ -131,7 +131,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final weather = _weather;
-    final bgColors = weather?.gradientColors ??
+    final bgColors =
+        weather?.gradientColors ??
         const [Color(0xFF4A607A), Color(0xFF6D8AA9), Color(0xFF445D7A)];
     final textColor = weather?.textColor ?? Colors.white;
 
@@ -215,10 +216,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
               suffixIcon: IconButton(
                 onPressed: () => _searchCity(_searchController.text),
-                icon: Icon(
-                  Icons.arrow_circle_right_rounded,
-                  color: textColor,
-                ),
+                icon: Icon(Icons.arrow_circle_right_rounded, color: textColor),
               ),
               filled: true,
               fillColor: Colors.white.withValues(alpha: 0.15),
@@ -352,7 +350,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: WeatherCard(
                             icon: Icons.air_rounded,
                             label: 'Wind',
-                            value: '${weather.windSpeed.toStringAsFixed(1)} m/s',
+                            value:
+                                '${weather.windSpeed.toStringAsFixed(1)} m/s',
                             textColor: textColor,
                           ),
                         ),
@@ -368,7 +367,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: WeeklyList(daily: weather.daily, textColor: textColor),
+                    child: WeeklyList(
+                      daily: weather.daily,
+                      textColor: textColor,
+                    ),
                   ),
                   const SizedBox(height: 34),
                 ],

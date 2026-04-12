@@ -22,14 +22,8 @@ class WeatherIllustration extends StatelessWidget {
             child: _blob(
               size: 220,
               colors: isDay
-                  ? [
-                      const Color(0x99FFE9AA),
-                      const Color(0x00FFFFFF),
-                    ]
-                  : [
-                      const Color(0xAA9CA9FF),
-                      const Color(0x007A8CEB),
-                    ],
+                  ? [const Color(0x99FFE9AA), const Color(0x00FFFFFF)]
+                  : [const Color(0xAA9CA9FF), const Color(0x007A8CEB)],
             ),
           ),
           Positioned(
@@ -57,12 +51,12 @@ class WeatherIllustration extends StatelessWidget {
               child: Container(
                 width: 54,
                 height: 54,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFD36E),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFD36E),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                          color: Color(0x66FFD36E),
+                      color: Color(0x66FFD36E),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),

@@ -31,7 +31,10 @@ class HourlyList extends StatelessWidget {
               child: GlassPanel(
                 borderRadius: BorderRadius.circular(22),
                 opacity: index == 0 ? 0.2 : 0.12,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 8,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -40,8 +43,9 @@ class HourlyList extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         color: textColor.withValues(alpha: 0.88),
                         fontSize: 11,
-                        fontWeight:
-                            index == 0 ? FontWeight.w600 : FontWeight.w500,
+                        fontWeight: index == 0
+                            ? FontWeight.w600
+                            : FontWeight.w500,
                       ),
                     ),
                     Text(

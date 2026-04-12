@@ -32,9 +32,8 @@ class DailyForecast {
 
   String get dayLabel {
     final now = DateTime.now();
-    final isToday = date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
     return isToday ? 'Today' : DateFormat('EEE').format(date);
   }
 

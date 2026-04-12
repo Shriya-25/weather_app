@@ -44,7 +44,9 @@ class WeatherIconView extends StatelessWidget {
     if (code.startsWith('01')) {
       return 'https://lottie.host/d57dd490-f169-44e8-b488-a8e589f7df4c/U0rdT3K4Q6.json';
     }
-    if (code.startsWith('02') || code.startsWith('03') || code.startsWith('04')) {
+    if (code.startsWith('02') ||
+        code.startsWith('03') ||
+        code.startsWith('04')) {
       return 'https://lottie.host/8aa1dceb-08f0-4297-a3f8-57cc50f9c132/Jx7M69x4xN.json';
     }
     if (code.startsWith('09') || code.startsWith('10')) {

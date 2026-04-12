@@ -58,7 +58,9 @@ class ApiService {
 
       return _mapToWeather(current, forecast);
     } on TimeoutException {
-      throw Exception('Request timed out. Please check your internet and retry.');
+      throw Exception(
+        'Request timed out. Please check your internet and retry.',
+      );
     } on http.ClientException {
       throw Exception('Network error. Please check your internet connection.');
     }
@@ -69,7 +71,8 @@ class ApiService {
     Map<String, dynamic> forecast,
   ) {
     final city = current['name'] as String? ?? 'Unknown';
-    final country = (current['sys'] as Map<String, dynamic>?)?['country'] as String?;
+    final country =
+        (current['sys'] as Map<String, dynamic>?)?['country'] as String?;
     final cityName = country == null ? city : '$city, $country';
 
     final currentMain = current['main'] as Map<String, dynamic>;
@@ -88,7 +91,9 @@ class ApiService {
     return WeatherData(
       cityName: cityName,
       temperature: (currentMain['temp'] as num).toDouble(),
-      condition: _toTitleCase(currentWeather['description'] as String? ?? 'Clear'),
+      condition: _toTitleCase(
+        currentWeather['description'] as String? ?? 'Clear',
+      ),
       iconCode: currentWeather['icon'] as String? ?? '01d',
       feelsLike: (currentMain['feels_like'] as num).toDouble(),
       humidity: (currentMain['humidity'] as num).toInt(),
@@ -104,7 +109,8 @@ class ApiService {
       final weather = (item['weather'] as List).first as Map<String, dynamic>;
       return HourlyForecast(
         time: DateTime.parse(item['dt_txt'] as String),
-        temp: ((item['main'] as Map<String, dynamic>)['temp'] as num).toDouble(),
+        temp: ((item['main'] as Map<String, dynamic>)['temp'] as num)
+            .toDouble(),
         iconCode: weather['icon'] as String? ?? '01d',
         condition: weather['main'] as String? ?? 'Clear',
       );
