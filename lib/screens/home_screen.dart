@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/app_config.dart';
 import '../models/weather_model.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
@@ -82,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
       _showWeather(weather, setSearchText: true);
     } catch (_) {
-      await _searchCity('London', setSearchText: true);
+      await _searchCity(AppConfig.fallbackCity, setSearchText: true);
     }
   }
 
