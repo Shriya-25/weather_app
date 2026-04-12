@@ -9,6 +9,15 @@
       "toolArgs": [
         "--dart-define=OPENWEATHER_API_KEY=${input:openWeatherApiKey}"
       ]
+    },
+    {
+      "name": "Weather App (Edge)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "edge",
+      "toolArgs": [
+        "--dart-define=OPENWEATHER_API_KEY=${input:openWeatherApiKey}"
+      ]
     }
   ],
   "inputs": [
