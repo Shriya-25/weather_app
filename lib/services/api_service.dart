@@ -49,6 +49,12 @@ class ApiService {
         throw Exception('City not found. Please search for a valid city name.');
       }
 
+      if (currentRes.statusCode == 401 || forecastRes.statusCode == 401) {
+        throw Exception(
+          'Invalid OpenWeather API key. Update OPENWEATHER_API_KEY and retry.',
+        );
+      }
+
       if (currentRes.statusCode != 200 || forecastRes.statusCode != 200) {
         throw Exception('Unable to fetch weather right now. Please try again.');
       }
