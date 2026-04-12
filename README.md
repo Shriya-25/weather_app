@@ -46,6 +46,20 @@ flutter pub get
 flutter run --dart-define=OPENWEATHER_API_KEY=YOUR_API_KEY
 ```
 
+### VS Code Run/Debug
+
+- Use the `Weather App (Chrome)` or `Weather App (Edge)` launch profile.
+- You will be prompted for `OPENWEATHER_API_KEY` automatically.
+
+### Device Note
+
+- This project currently targets web for desktop preview.
+- If Windows desktop support is needed, run:
+
+```bash
+flutter create . --platforms=windows
+```
+
 ## Notes
 
 - If location permission is denied, the app falls back to London and search remains fully available.
