@@ -65,6 +65,10 @@ class WeatherData {
     required this.daily,
   });
 
+  static String formatTemp(double value) => '${value.toStringAsFixed(0)}°';
+
+  static String formatWindMs(double value) => '${value.toStringAsFixed(1)} m/s';
+
   static String emojiFromIcon(String iconCode) {
     if (iconCode.startsWith('01')) return iconCode.endsWith('d') ? '☀️' : '🌙';
     if (iconCode.startsWith('02')) return '🌤️';
