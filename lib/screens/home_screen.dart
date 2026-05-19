@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../config/app_config.dart';
 import '../models/weather_model.dart';
 import '../services/api_service.dart';
+import '../services/connectivity_service.dart';
 import '../services/location_service.dart';
 import '../widgets/hourly_list.dart';
 import '../widgets/loading_skeleton.dart';
@@ -12,7 +13,7 @@ import '../widgets/weather_icon_view.dart';
 import '../widgets/weather_illustration.dart';
 import '../widgets/weekly_list.dart';
 
-enum WeatherUiState { loading, loaded, error }
+enum WeatherUiState { loading, loaded, error, offline }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   final LocationService _locationService = LocationService();
+  final ConnectivityService _connectivityService = ConnectivityService();
   final TextEditingController _searchController = TextEditingController();
 
   WeatherData? _weather;
@@ -58,6 +60,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           CurvedAnimation(parent: _cardsController, curve: Curves.easeOutCubic),
         );
 
+    _connectivityService.onConnectivityChanged.listen((hasConnection) {
+      if (hasConnection && _state == WeatherUiState.offline) {
+        _loadInitialWeather();
+      } else if (!hasConnection) {
+        if (mounted) {
+          setState(() {
+            _state = WeatherUiState.offline;
+          });
+        }
+      }
+    });
+
     _loadInitialWeather();
   }
 
@@ -70,6 +84,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadInitialWeather() async {
+    final hasConnection = await _connectivityService.hasConnection();
+    if (!hasConnection) {
+      setState(() {
+        _state = WeatherUiState.offline;
+      });
+      return;
+    }
+
     setState(() {
       _state = WeatherUiState.loading;
       _error = null;
@@ -90,6 +112,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _searchCity(String city, {bool setSearchText = false}) async {
     final trimmed = city.trim();
     if (trimmed.isEmpty) return;
+
+    final hasConnection = await _connectivityService.hasConnection();
+    if (!hasConnection) {
+      setState(() {
+        _state = WeatherUiState.offline;
+      });
+      return;
+    }
 
     setState(() {
       _state = WeatherUiState.loading;
@@ -239,12 +269,51 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return const LoadingSkeleton(key: ValueKey('loading'));
       case WeatherUiState.error:
         return _buildError(textColor);
+      case WeatherUiState.offline:
+        return _buildOffline(textColor);
       case WeatherUiState.loaded:
         if (_weather == null) {
           return _buildError(textColor);
         }
         return _buildWeather(textColor, _weather!);
     }
+  }
+
+  Widget _buildOffline(Color textColor) {
+    return Center(
+      key: const ValueKey('offline'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, color: textColor, size: 54),
+            const SizedBox(height: 10),
+            Text(
+              'No Internet Connection',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                  color: textColor, fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Please check your network settings and try again.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(color: textColor, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.tonal(
+              onPressed: _loadInitialWeather,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                foregroundColor: textColor,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildError(Color textColor) {
@@ -333,7 +402,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: WeatherCard(
                             icon: Icons.thermostat_rounded,
                             label: 'Feels Like',
-                            value: '${WeatherData.formatTemp(weather.feelsLike)}C',
+                            value:
+                                '${WeatherData.formatTemp(weather.feelsLike)}C',
                             textColor: textColor,
                           ),
                         ),
